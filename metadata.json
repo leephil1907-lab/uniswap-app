@@ -1,0 +1,6 @@
+{
+  "name": "Uniswap App",
+  "description": "Swap tokens with zero app fees across 21+ EVM networks including Ethereum, Unichain, Base, and Arbitrum. The official decentralized trading protocol interface.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
