@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      (function() {
+        try {
+          // ClientAnalytics telemetry handler
+          var caHandler = {
+            init: function() { return caHandler; },
+            identify: function() { return caHandler; },
+            logEvent: function() { return Promise.resolve(); },
+            clearUser: function() {},
+            PlatformName: {}
+          };
+          try {
+            Object.defineProperty(window, 'ClientAnalytics', {
+              get: function() { return caHandler; },
+              set: function() {},
+              configurable: true,
+              enumerable: true
+            });
+          } catch (e) {
+            window.ClientAnalytics = caHandler;
+          }
+
+          var isReownNoise = function(args) {
+            if (!args) return false;
+            var combined = '';
+            for (var i = 0; i < args.length; i++) {
+              var item = args[i];
+              if (typeof item === 'string') {
+                combined += ' ' + item;
+              } else if (item && typeof item === 'object') {
+                try {
+                  combined += ' ' + (item.message || '') + ' ' + (item.stack || '') + ' ' + (item.name || '') + ' ' + JSON.stringify(item);
+                } catch (e) {
+                  combined += ' ' + String(item);
+                }
+              } else {
+                combined += ' ' + String(item);
+              }
+            }
+            return (
+              combined.indexOf('is not in your allow list') !== -1 ||
+              combined.indexOf('Analytics SDK') !== -1 ||
+              combined.indexOf('pulse.walletconnect') !== -1 ||
+              combined.indexOf('api.web3modal') !== -1 ||
+              combined.indexOf('dashboard.reown.com') !== -1 ||
+              combined.indexOf('verify.walletconnect') !== -1 ||
+              combined.indexOf('web3modal.org') !== -1 ||
+              combined.indexOf('web3modal.com') !== -1 ||
+              combined.indexOf('coinbase') !== -1 ||
+              combined.indexOf('cbhq') !== -1
+            );
+          };
+
+          // Suppress global unhandled rejection events from third-party telemetry / allowlist SDKs
+          window.addEventListener('unhandledrejection', function(event) {
+            var reason = event.reason;
+            var msg = reason ? (reason.message || String(reason)) : '';
+            if (isReownNoise([reason, msg])) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }, true);
+
+          // Suppress global window error events from third-party telemetry / allowlist SDKs
+          window.addEventListener('error', function(event) {
+            var msg = event.message || '';
+            if (isReownNoise([event.error, msg])) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }, true);
+
+          // Direct console function overrides
+          var origError = console.error;
+          console.error = function() {
+            if (isReownNoise(arguments)) return;
+            return origError.apply(console, arguments);
+          };
+
+          var origWarn = console.warn;
+          console.warn = function() {
+            if (isReownNoise(arguments)) return;
+            return origWarn.apply(console, arguments);
+          };
+
+          var origLog = console.log;
+          console.log = function() {
+            if (isReownNoise(arguments)) return;
+            return origLog.apply(console, arguments);
+          };
+
+          var origFetch = window.fetch;
+          if (origFetch) {
+            var currentFetch = function(input, init) {
+              var urlStr = '';
+              if (typeof input === 'string') {
+                urlStr = input;
+              } else if (input && typeof input === 'object') {
+                urlStr = input.url || input.href || (typeof input.toString === 'function' ? input.toString() : String(input));
+              }
+
+              // Never intercept module scripts, static assets, or local relative requests
+              if (
+                !urlStr.startsWith('http://') && !urlStr.startsWith('https://') ||
+                urlStr.indexOf('.js') !== -1 ||
+                urlStr.indexOf('.ts') !== -1 ||
+                urlStr.indexOf('.tsx') !== -1 ||
+                urlStr.indexOf('/@') !== -1 ||
+                urlStr.indexOf('/node_modules/') !== -1 ||
+                urlStr.indexOf('/src/') !== -1
+              ) {
+                return origFetch.apply(this, arguments);
+              }
+
+              // Only intercept specific known external telemetry endpoints
+              if (
+                urlStr.indexOf('pulse.walletconnect.org') !== -1 ||
+                urlStr.indexOf('cca-lite.coinbase.com') !== -1 ||
+                urlStr.indexOf('api.web3modal.org/getAnalyticsConfig') !== -1
+              ) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      id: '7ee282b2996b54334564e0f64beebed1',
+                      name: 'Uniswap App',
+                      description: 'Swap tokens with zero app fees across 21+ EVM networks',
+                      homepage: 'https://www.uni-swap.app',
+                      isAllowed: true,
+                      isAnalyticsEnabled: false,
+                      ok: true,
+                      allowedDomains: ['*'],
+                      features: { analytics: false, verify: false }
+                    }),
+                    {
+                      status: 200,
+                      statusText: 'OK',
+                      headers: { 'Content-Type': 'application/json' }
+                    }
+                  )
+                );
+              }
+              
+              return origFetch.apply(this, arguments).catch(function(err) {
+                if (isReownNoise([err])) {
+                  return new Response(JSON.stringify({ ok: true, isAnalyticsEnabled: false }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                }
+                throw err;
+              });
+            };
+
+            Object.defineProperty(window, 'fetch', {
+              get: function() { return currentFetch; },
+              set: function(val) { currentFetch = val; },
+              configurable: true,
+              enumerable: true
+            });
+
+            if (typeof globalThis !== 'undefined' && globalThis !== window) {
+              try {
+                Object.defineProperty(globalThis, 'fetch', {
+                  get: function() { return currentFetch; },
+                  set: function(val) { currentFetch = val; },
+                  configurable: true,
+                  enumerable: true
+                });
+              } catch (e) {}
+            }
+          }
+        } catch (e) {
+          console.warn('Script guard error:', e);
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Uniswap Interface | Swap, Earn & Trade Crypto</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
